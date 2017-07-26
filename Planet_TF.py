@@ -1,41 +1,21 @@
-
-# coding: utf-8
-
-# In[59]:
-
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-
-# In[60]:
-
 # Filepath of the dataset
 pre_filepath = "../../../../../../Volumes/Seagate Backup Plus Drive/Documents/Kaggle Datasets/"
-
-
-# In[61]:
 
 # Paramaters definitions
 VALIDATION_SPLIT = 35000
 BATCH_SIZE = 32
 EPOCHS = 5
 
-
-# In[62]:
-
 checkpoint_dir = "model_data/"
-
-
-# In[63]:
 
 X = tf.placeholder(tf.float32, [None, 64, 64, 3], name='X')
 y = tf.placeholder(tf.float32, [None, 17], name='y')
 
 n_classes = int(y.shape[1])
-
-
-# In[64]:
 
 # Helper wrappers
 def conv2d(x, W, b, strides=1):
@@ -92,9 +72,6 @@ def model(images, weights, biases, dropout=0.8):
     # Return logits which is a vector of 17 class scores
     return fc2
 
-
-# In[66]:
-
 weights = {'conv1':tf.Variable(tf.random_normal([3,3,3,32])), # 3 by 3 convolution, 3 channels (depth), 32 outputs
            'conv2':tf.Variable(tf.random_normal([3,3,32,64])), # 3 by 3 convolution, 32 inputs, 64 outputs
            'conv3':tf.Variable(tf.random_normal([3,3,64,128])), # 3 by 3 convolution, 64 inputs, 128 outputs
@@ -107,58 +84,26 @@ biases = {'conv1':tf.Variable(tf.random_normal([32])),
           'fc1':tf.Variable(tf.random_normal([1024])),
           'fc2':tf.Variable(tf.random_normal([n_classes]))}
 
-
-# In[67]:
-
 # Instantiate the model
 pred_logits = model(X, weights, biases)
 normalized_pred = tf.nn.softmax(pred_logits)
-
-
-# In[68]:
 
 # Loss function and optimizer
 cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=pred_logits))
 optimizer = tf.train.AdamOptimizer(learning_rate=2e-4).minimize(cost)
 
-
-# In[70]:
-
+# Evaluate accuracy of the model
 y_true_class = tf.argmax(y, dimension=1)
-y_pred_class = tf.argmax(normalized_pred, dimension=1)
-was_pred_correct = tf.equal(y_pred_class, y_true_class)
-accuracy = tf.reduce_mean(tf.cast(was_pred_correct, tf.float32))
-
-
-# In[47]:
-
-"""# Evaluate the model
-
-was_pred
-
 # Get the prediction from the highest valued logit
-correct_prediction = tf.equal(tf.argmax(pred_logits), tf.argmax(y))
-prediction = tf.cast(prediction, tf.uint8)
-
-# Compute array of bools that indicate whether the prediction was correct
-pred_correct = tf.equal(y, prediction)
-
+y_pred_class = tf.argmax(normalized_pred, dimension=1)
+# Array of bools that indicate whether the prediction was correct
+was_pred_correct = tf.equal(y_pred_class, y_true_class) 
 # Compute accuracy
-accuracy = tf.reduce_mean(tf.cast(pred_correct, tf.float32))"""
-
-
-# In[71]:
-
-# Load X_train and y_train arrays from disk
-# X_train = np.load(pre_filepath + "Planet/model-data/X_train_arr.npy")
-# y_train = np.load(pre_filepath + "Planet/model-data/y_train_arr.npy")
+accuracy = tf.reduce_mean(tf.cast(was_pred_correct, tf.float32))
 
 # Load X_train and y_train arrays from disk
 X_arr = np.load("model-data/X_train_arr.npy")
 y_arr = np.load("model-data/y_train_arr.npy")
-
-
-# In[72]:
 
 # Splitting up the training data into training and validation sets
 X_train_arr = X_arr[:VALIDATION_SPLIT]
@@ -166,9 +111,6 @@ y_train_arr = y_arr[:VALIDATION_SPLIT]
 
 X_valid_arr = X_arr[VALIDATION_SPLIT:]
 y_valid_arr = y_arr[VALIDATION_SPLIT:]
-
-
-# In[78]:
 
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())

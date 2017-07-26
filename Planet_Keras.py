@@ -17,7 +17,7 @@ y_train = []
 
 pre_filepath = "../../../../../../Volumes/Seagate Backup Plus Drive/Documents/Kaggle Datasets/"
 
-df_train = pd.read_csv(pre_filepath + "Planet/train_v2.csv")
+df_train = pd.read_csv(pre_filepath + "train_v2.csv")
 
 flatten = lambda l: [item for sublist in l for item in sublist]
 labels = list(set(flatten([l.split(' ') for l in df_train['tags'].values])))
@@ -26,6 +26,7 @@ label_map = {l: i for i, l in enumerate(labels)}
 inv_label_map = {i: l for l, i in label_map.items()}
 index_map = {i : j for i, j in enumerate(labels)}
 label_map = {j : i for i, j in enumerate(labels)}
+print(label_map)
 
 for file_name, tags in tqdm.tqdm(df_train.values, miniters=100):
     
