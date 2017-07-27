@@ -2,20 +2,51 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
+from input_pipeline import input_pipeline 
+
 # Filepath of the dataset
-pre_filepath = "../../../../../../Volumes/Seagate Backup Plus Drive/Documents/Kaggle Datasets/"
+pre_filepath = "../../../../../../Volumes/Seagate Backup Plus Drive/Documents/Kaggle Datasets/Planet/"
 
 # Paramaters definitions
 VALIDATION_SPLIT = 35000
 BATCH_SIZE = 32
-EPOCHS = 5
+EPOCHS = 6
 
 checkpoint_dir = "model_data/"
+
+label_map = {
+	'clear' : 0,
+	'haze' : 1,
+	'slash_burn' : 2,
+	'habitation' : 3,
+	'partly_cloudy' : 4,
+	'artisinal_mine' : 5,
+	'blooming' : 6,
+	'cultivation' : 7,
+	'conventional_mine' : 8,
+	'blow_down' : 9,
+	'bare_ground' : 10,
+	'selective_logging' : 11,
+	'cloudy' : 12,
+	'primary' : 13,
+	'road': 14,
+	'water': 15,
+	'agriculture': 16
+}
 
 X = tf.placeholder(tf.float32, [None, 64, 64, 3], name='X')
 y = tf.placeholder(tf.float32, [None, 17], name='y')
 
 n_classes = int(y.shape[1])
+
+
+
+dicker = input_pipeline(label_map)
+print(dicker.encode_label(['dick', 'fuck']))
+
+# Function for reading in data in batches
+#def input_pipeline()
+
 
 # Helper wrappers
 def conv2d(x, W, b, strides=1):
@@ -31,9 +62,6 @@ def fc(x, W, b):
     return_val = tf.nn.bias_add(return_val, b)
     return tf.nn.relu(return_val)
 
-
-# In[65]:
-
 # Build the Tensorflow model!
 def model(images, weights, biases, dropout=0.8):
     """
@@ -43,7 +71,7 @@ def model(images, weights, biases, dropout=0.8):
         images: entire training set of images
         input_shape: dimensions of input as a tuple
     
-    Outputs logits
+    Outputs: logits
     """
     
     # Apply convolution and pooling to each layer
@@ -101,9 +129,9 @@ was_pred_correct = tf.equal(y_pred_class, y_true_class)
 # Compute accuracy
 accuracy = tf.reduce_mean(tf.cast(was_pred_correct, tf.float32))
 
-# Load X_train and y_train arrays from disk
-X_arr = np.load("model-data/X_train_arr.npy")
-y_arr = np.load("model-data/y_train_arr.npy")
+
+# Loading and batching data
+
 
 # Splitting up the training data into training and validation sets
 X_train_arr = X_arr[:VALIDATION_SPLIT]
