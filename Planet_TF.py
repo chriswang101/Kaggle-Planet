@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from tensorflow.python.framework import ops
+from tensorflow.python.framework import dtypes
 
 from input_pipeline import input_pipeline 
 
@@ -37,16 +39,22 @@ label_map = {
 X = tf.placeholder(tf.float32, [None, 64, 64, 3], name='X')
 y = tf.placeholder(tf.float32, [None, 17], name='y')
 
-n_classes = int(y.shape[1])
+input_pipeline_obj = input_pipeline(label_map)
+file_names_tensor, labels_tensor = input_pipeline_obj.read_input_file('train_v2.csv', read_first_line=False)
 
+# Get number of classes and number of training examples from the dataset
+N_CLASSES = int(y.shape[1])
+N_EXAMPLES = int(file_names_tensor.shape[0])
 
+# Slice tensors into single instances and create a queue to handle them
+input_queue = tf.train.slice_input_producer([file_names_tensor, labels_tensor])
 
-dicker = input_pipeline(label_map)
-print(dicker.encode_label(['dick', 'fuck']))
+file_content = tf.read_file(input_queue[0])
+train_image = tf.image.decode_jpeg(file_content, channels=3)
+train_label = input_queue[1]
 
-# Function for reading in data in batches
-#def input_pipeline()
-
+# Making batches of images and labels
+image_batch, label_batch = tf.train.batch([train_image, train_label], batch_size=BATCH_SIZE)
 
 # Helper wrappers
 def conv2d(x, W, b, strides=1):
@@ -104,13 +112,13 @@ weights = {'conv1':tf.Variable(tf.random_normal([3,3,3,32])), # 3 by 3 convoluti
            'conv2':tf.Variable(tf.random_normal([3,3,32,64])), # 3 by 3 convolution, 32 inputs, 64 outputs
            'conv3':tf.Variable(tf.random_normal([3,3,64,128])), # 3 by 3 convolution, 64 inputs, 128 outputs
            'fc1':tf.Variable(tf.random_normal([8*8*128,1024])), 
-           'fc2':tf.Variable(tf.random_normal([1024,n_classes]))}
+           'fc2':tf.Variable(tf.random_normal([1024,N_CLASSES]))}
 
 biases = {'conv1':tf.Variable(tf.random_normal([32])),
           'conv2':tf.Variable(tf.random_normal([64])),
           'conv3':tf.Variable(tf.random_normal([128])),
           'fc1':tf.Variable(tf.random_normal([1024])),
-          'fc2':tf.Variable(tf.random_normal([n_classes]))}
+          'fc2':tf.Variable(tf.random_normal([N_CLASSES]))}
 
 # Instantiate the model
 pred_logits = model(X, weights, biases)
@@ -129,40 +137,39 @@ was_pred_correct = tf.equal(y_pred_class, y_true_class)
 # Compute accuracy
 accuracy = tf.reduce_mean(tf.cast(was_pred_correct, tf.float32))
 
-
-# Loading and batching data
-
-
 # Splitting up the training data into training and validation sets
-X_train_arr = X_arr[:VALIDATION_SPLIT]
-y_train_arr = y_arr[:VALIDATION_SPLIT]
+# X_train_arr = X_arr[:VALIDATION_SPLIT]
+# y_train_arr = y_arr[:VALIDATION_SPLIT]
 
-X_valid_arr = X_arr[VALIDATION_SPLIT:]
-y_valid_arr = y_arr[VALIDATION_SPLIT:]
+# X_valid_arr = X_arr[VALIDATION_SPLIT:]
+# y_valid_arr = y_arr[VALIDATION_SPLIT:]
 
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
+
+    # Initialize the queue coordinator and queue threads to use to batch up data
+    coord = tf.train.Coordinator()
+    threads = tf.train.start_queue_runners(coord=coord)
+
     for epoch in range(EPOCHS):
         training_cost = 0
         train_accuracies = np.array([])
-        for image in range(VALIDATION_SPLIT//50):
-            # Extract the next BATCH_SIZE images and labels
-            X_train_img = X_train_arr[image]
-            y_train_img = y_train_arr[image]
-            
+        for image in range(N_EXAMPLES//BATCH_SIZE):
+            # Extract the next batch of images and labels
+            X_train_batch = sess.run(image_batch)
+            y_train_batch = sess.run(label_batch)
+
             # Run the model
-            feed_dict_train = {X : np.reshape(X_train_img, [1,64,64,3]),
-                               y : np.reshape(y_train_img, [1,17])}
+            feed_dict_train = {X : X_train_batch,
+                               y : y_train_batch}
             train_cost, train_accuracy = sess.run([cost, accuracy], feed_dict=feed_dict_train)
             np.append(train_accuracies, train_accuracy)
             print(train_accuracy)
             
             training_cost += cost
-            if image % 10 == 0: print(image)
         
         # Compute training accuracy
         train_accuracy = np.mean(train_accuracies)
-        print(y.shape)
         # Compute validation accuracy
         #feed_dict_valid = {X : np.reshape(X_valid_arr, [1,64,64,3]),
         #                   y : np.reshape(y_valid_arr, [1,17])}

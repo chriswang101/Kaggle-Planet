@@ -1,4 +1,5 @@
 import random
+import tensorflow as tf
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import dtypes
 
@@ -43,7 +44,7 @@ class input_pipeline(object):
 		for line in lines:
 			file_name, label_str = line.split(',')
 			label_list = label_str.rstrip().split(' ')
-			int_labels.append(encode_label(label_list))
+			int_labels.append(self.encode_label(label_list))
 			file_names.append(file_name)
 
 		file.close()
