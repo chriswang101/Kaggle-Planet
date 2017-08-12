@@ -7,12 +7,14 @@ from tensorflow.python.framework import dtypes
 from input_pipeline import input_pipeline 
 
 # Filepath of the dataset
-pre_filepath = "../../../../../../Volumes/Seagate Backup Plus Drive/Documents/Kaggle Datasets/Planet/"
+pre_filepath = "../../../../../../Volumes/Seagate Backup Plus Drive/Documents/Kaggle Datasets/Planet/train-jpg/"
 
 # Paramaters definitions
 VALIDATION_SPLIT = 35000
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 EPOCHS = 6
+
+IMAGE_HEIGHT = IMAGE_WIDTH = 256
 
 checkpoint_dir = "model_data/"
 
@@ -36,7 +38,7 @@ label_map = {
 	'agriculture': 16
 }
 
-X = tf.placeholder(tf.float32, [None, 64, 64, 3], name='X')
+X = tf.placeholder(tf.float32, [None, IMAGE_HEIGHT, IMAGE_WIDTH, 3], name='X')
 y = tf.placeholder(tf.float32, [None, 17], name='y')
 
 input_pipeline_obj = input_pipeline(label_map)
@@ -48,77 +50,85 @@ N_EXAMPLES = int(file_names_tensor.shape[0])
 
 # Slice tensors into single instances and create a queue to handle them
 input_queue = tf.train.slice_input_producer([file_names_tensor, labels_tensor])
-
-file_content = tf.read_file(input_queue[0])
+file_content = tf.read_file(pre_filepath + input_queue[0] + '.jpg')
 train_image = tf.image.decode_jpeg(file_content, channels=3)
 train_label = input_queue[1]
+
+# Specify shape of images. Needed for batching step
+train_image.set_shape([IMAGE_HEIGHT,IMAGE_WIDTH,3])
 
 # Making batches of images and labels
 image_batch, label_batch = tf.train.batch([train_image, train_label], batch_size=BATCH_SIZE)
 
 # Helper wrappers
 def conv2d(x, W, b, strides=1):
-    return_val = tf.nn.conv2d(x, W, strides=[1,strides,strides,1], padding='SAME')
-    return_val = tf.nn.bias_add(return_val, b)
-    return tf.nn.relu(return_val)
+	return_val = tf.nn.conv2d(x, W, strides=[1,strides,strides,1], padding='SAME')
+	return_val = tf.nn.bias_add(return_val, b)
+	return tf.nn.relu(return_val)
 
 def maxpool(x, pool_size=2):
-    return tf.nn.max_pool(x, [1,pool_size,pool_size,1], [1,pool_size,pool_size,1], padding='SAME')
+	return tf.nn.max_pool(x, [1,pool_size,pool_size,1], [1,pool_size,pool_size,1], padding='SAME')
 
 def fc(x, W, b):
-    return_val = tf.matmul(x, W)
-    return_val = tf.nn.bias_add(return_val, b)
-    return tf.nn.relu(return_val)
+	return_val = tf.matmul(x, W)
+	return_val = tf.nn.bias_add(return_val, b)
+	return tf.nn.relu(return_val)
 
 # Build the Tensorflow model!
-def model(images, weights, biases, dropout=0.8):
-    """
-    Defines the image classification model
-    
-    Inputs:
-        images: entire training set of images
-        input_shape: dimensions of input as a tuple
-    
-    Outputs: logits
-    """
-    
-    # Apply convolution and pooling to each layer
-    conv1 = conv2d(images, weights['conv1'], biases['conv1'])  
-    conv1 = maxpool(conv1)
-    
-    conv2 = conv2d(conv1, weights['conv2'], biases['conv2'])
-    conv2 = maxpool(conv2)
-    
-    conv3 = conv2d(conv2, weights['conv3'], biases['conv3'])
-    conv3 = maxpool(conv3)
-    
-    # Apply dropout
-    conv3 = tf.nn.dropout(conv3, dropout)
-    
-    # First reshape output of conv3 into a vector
-    conv3_vec = tf.reshape(conv3, [1, 8*8*128])
-    
-    # FC layers
-    fc1 = fc(conv3_vec, weights['fc1'], biases['fc1'])
-    # Then apply dropout
-    fc1 = tf.nn.dropout(fc1, dropout)
-    
-    fc2 = fc(fc1, weights['fc2'], biases['fc2'])
-    
-    # Return logits which is a vector of 17 class scores
-    return fc2
+def model(images, weights, biases, dropout=0.5):
+	"""
+	Defines the image classification model
+	
+	Inputs:
+		images: entire training set of images
+		input_shape: dimensions of input as a tuple
+	
+	Outputs: logits
+	"""
+	
+	# Apply convolution and pooling to each layer
+	conv1 = conv2d(images, weights['conv1'], biases['conv1'], strides=2)  
+	conv1 = maxpool(conv1)
+	print(conv1.shape)
+	conv2 = conv2d(conv1, weights['conv2'], biases['conv2'])
+	conv2 = maxpool(conv2)
+	print(conv2.shape)
+	conv3 = conv2d(conv2, weights['conv3'], biases['conv3'])
+	conv3 = maxpool(conv3)
+	print(conv3.shape)
+	conv4 = conv2d(conv3, weights['conv4'], biases['conv4'])
+	conv4 = maxpool(conv4)
+	
+	# Apply dropout
+	conv3 = tf.nn.dropout(conv3, dropout)
+	
+	# First reshape output of conv3 into a vector
+	conv3_vec = tf.reshape(conv3, [-1,16*16*128])
+	
+	# FC layers
+	fc1 = fc(conv3_vec, weights['fc1'], biases['fc1'])
 
-weights = {'conv1':tf.Variable(tf.random_normal([3,3,3,32])), # 3 by 3 convolution, 3 channels (depth), 32 outputs
-           'conv2':tf.Variable(tf.random_normal([3,3,32,64])), # 3 by 3 convolution, 32 inputs, 64 outputs
-           'conv3':tf.Variable(tf.random_normal([3,3,64,128])), # 3 by 3 convolution, 64 inputs, 128 outputs
-           'fc1':tf.Variable(tf.random_normal([8*8*128,1024])), 
-           'fc2':tf.Variable(tf.random_normal([1024,N_CLASSES]))}
+	# Then apply dropout
+	fc1 = tf.nn.dropout(fc1, dropout)
+	
+	fc2 = fc(fc1, weights['fc2'], biases['fc2'])
+	
+	# Return logits which is a vector of 17 class scores
+	return fc2
+
+weights = {'conv1':tf.Variable(tf.random_normal([5,5,3,32])), # 5 by 5 convolution, 3 channels (depth), 32 outputs
+		   'conv2':tf.Variable(tf.random_normal([5,5,32,64])), # 5 by 5 convolution, 32 inputs, 64 outputs
+		   'conv3':tf.Variable(tf.random_normal([3,3,64,128])), # 3 by 3 convolution, 64 inputs, 128 outputs
+		   'conv4':tf.Variable(tf.random_normal([3,3,128,128])), # 3 by 3 convolution, 128 inputs, 128 outputs
+		   'fc1':tf.Variable(tf.random_normal([16*16*128,1024])), 
+		   'fc2':tf.Variable(tf.random_normal([1024,N_CLASSES]))}
 
 biases = {'conv1':tf.Variable(tf.random_normal([32])),
-          'conv2':tf.Variable(tf.random_normal([64])),
-          'conv3':tf.Variable(tf.random_normal([128])),
-          'fc1':tf.Variable(tf.random_normal([1024])),
-          'fc2':tf.Variable(tf.random_normal([N_CLASSES]))}
+		  'conv2':tf.Variable(tf.random_normal([64])),
+		  'conv3':tf.Variable(tf.random_normal([128])),
+		  'conv4':tf.Variable(tf.random_normal([128])),
+		  'fc1':tf.Variable(tf.random_normal([1024])),
+		  'fc2':tf.Variable(tf.random_normal([N_CLASSES]))}
 
 # Instantiate the model
 pred_logits = model(X, weights, biases)
@@ -145,36 +155,47 @@ accuracy = tf.reduce_mean(tf.cast(was_pred_correct, tf.float32))
 # y_valid_arr = y_arr[VALIDATION_SPLIT:]
 
 with tf.Session() as sess:
-    sess.run(tf.global_variables_initializer())
+	sess.run(tf.global_variables_initializer())
 
-    # Initialize the queue coordinator and queue threads to use to batch up data
-    coord = tf.train.Coordinator()
-    threads = tf.train.start_queue_runners(coord=coord)
+	# Initialize the queue coordinator and queue threads to use to batch up data
+	coord = tf.train.Coordinator()
+	threads = tf.train.start_queue_runners(coord=coord)
 
-    for epoch in range(EPOCHS):
-        training_cost = 0
-        train_accuracies = np.array([])
-        for image in range(N_EXAMPLES//BATCH_SIZE):
-            # Extract the next batch of images and labels
-            X_train_batch = sess.run(image_batch)
-            y_train_batch = sess.run(label_batch)
+	try:
+		while True:
+			# Run training Ops here...
+			for epoch in range(EPOCHS):
+				training_cost = 0
+				train_accuracies = np.array([])
+				for image in range(N_EXAMPLES//BATCH_SIZE):
+					# Extract the next batch of images and labels
+					X_train_batch = sess.run(image_batch)
+					y_train_batch = sess.run(label_batch)
 
-            # Run the model
-            feed_dict_train = {X : X_train_batch,
-                               y : y_train_batch}
-            train_cost, train_accuracy = sess.run([cost, accuracy], feed_dict=feed_dict_train)
-            np.append(train_accuracies, train_accuracy)
-            print(train_accuracy)
-            
-            training_cost += cost
-        
-        # Compute training accuracy
-        train_accuracy = np.mean(train_accuracies)
-        # Compute validation accuracy
-        #feed_dict_valid = {X : np.reshape(X_valid_arr, [1,64,64,3]),
-        #                   y : np.reshape(y_valid_arr, [1,17])}
-        #valid_cost, valid_accuracy = sess.run([cost, accuracy], feed_dict=feed_dict_valid)
-        print("Epoch: " + str(epoch))
-        print("Training loss: " + str(train_cost) + "Training accuracy: " + str(train_accuracy))
-        #print("Validation loss: " + valid_cost + "Validation accuracy: " + valid_accuracy)
+					# Run the model
+					feed_dict_train = {X : X_train_batch,
+									   y : y_train_batch}
+					train_cost, train_accuracy = sess.run([cost, accuracy], feed_dict=feed_dict_train)
+					np.append(train_accuracies, train_accuracy)
+					print(train_accuracy)
+					
+					training_cost += cost
+				
+				# Compute training accuracy
+				train_accuracy = np.mean(train_accuracies)
+				# Compute validation accuracy
+				#feed_dict_valid = {X : np.reshape(X_valid_arr, [1,64,64,3]),
+				#                   y : np.reshape(y_valid_arr, [1,17])}
+				#valid_cost, valid_accuracy = sess.run([cost, accuracy], feed_dict=feed_dict_valid)
+				print("Epoch: " + str(epoch))
+				print("Training loss: " + str(train_cost) + "Training accuracy: " + str(train_accuracy))
+				#print("Validation loss: " + valid_cost + "Validation accuracy: " + valid_accuracy)
 
+	except tf.errors.OutOfRangeError:
+		print('Done training -- epoch limit reached')
+
+	
+
+	# Perform cleanup operations with the threads
+	coord.request_stop()
+	#coord.join(threads)
