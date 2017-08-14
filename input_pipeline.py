@@ -54,7 +54,7 @@ class input_pipeline(object):
 
 		return file_names_tensor, int_labels_tensor
 
-	def partition_tensor(self, test_size, tensor):
+	def partition_tensor(self, tensor, test_size):
 		"""
 		Splits a tensor into a train and test batch
 		Inputs:
@@ -63,10 +63,10 @@ class input_pipeline(object):
 		Returns:
 			tuple of two tensors with format (train set, test set)
 		"""
-		num_items = tensor.shape[0]
-		partitions = [0] * num_items
-		partitions[:test_size] = [1] * test_size
-		random.shuffle(partitions)
-
-		return tf.dynamic_partition(tensor, partitions, 2)
+		print("ASF", tensor.shape)
+		num_items = tensor.shape[0].value
+		#train_tensor = tensor[0:10000, :]
+		train_tensor = tf.slice(tensor, [0], [num_items - test_size])
+		test_tensor = tf.slice(tensor, [num_items - test_size], [test_size])
+		return train_tensor, test_tensor
 
