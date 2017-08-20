@@ -19,7 +19,8 @@ IMAGE_HEIGHT = IMAGE_WIDTH = 256
 
 checkpoint_dir = "model_data/"
 
-label_map = {
+# Used to convert the names of the labels to an integer index
+label_map = { 
 	'clear' : 0,
 	'haze' : 1,
 	'slash_burn' : 2,
@@ -38,6 +39,53 @@ label_map = {
 	'water': 15,
 	'agriculture': 16
 }
+
+# Used to convert the labels back to names for export to CSV format
+inv_label_map = { 
+	0 : 'clear',
+	1 : 'haze',
+	2 : 'slash_burn',
+	3 : 'habitation',
+	4 : 'partly_cloudy',
+	5 : 'artisinal_mine',
+	6 : 'blooming',
+	7 : 'cultivation',
+	8 : 'conventional_mine',
+	9 : 'blow_down',
+	10: 'bare_ground',
+	11: 'selective_logging',
+	12: 'cloudy',
+	13: 'primary',
+	14: 'road',
+	15: 'water',
+	16: 'agriculture'
+}
+
+# Thresholds for whether an image fits into a specific category
+# Source: https://www.kaggle.com/infinitewing/keras-solution-and-my-experience-0-92664
+thres = { 
+	'blow_down' : 0.2,
+    'bare_ground' : 0.138,
+    'conventional_mine' : 0.1,
+    'blooming' : 0.168,
+    'cultivation' : 0.204,
+    'artisinal_mine' : 0.114,
+    'haze' : 0.204,
+    'primary' : 0.204,
+    'slash_burn' : 0.38,
+    'habitation' : 0.17,
+    'clear' : 0.13,
+    'road' : 0.156,
+    'selective_logging' : 0.154,
+    'partly_cloudy' : 0.112,
+    'agriculture' : 0.164,
+    'water' : 0.182,
+    'cloudy' : 0.076
+}
+
+# This flag is used to allow/prevent batch normalization params updates
+# depending on whether the model is being trained or used for prediction.
+training = tf.placeholder_with_default(True, shape=())
 
 X = tf.placeholder(tf.float32, [None, IMAGE_HEIGHT, IMAGE_WIDTH, 3], name='X')
 y = tf.placeholder(tf.float32, [None, 17], name='y')
@@ -79,9 +127,9 @@ image_batch_train, label_batch_train = tf.train.batch([train_image, train_label]
 image_batch_valid, label_batch_valid = tf.train.batch([valid_image, valid_label], batch_size=BATCH_SIZE)
 
 # Helper wrappers
-def conv2d(x, W, b, strides=1):
+def conv2d(x, W, strides=1):
 	return_val = tf.nn.conv2d(x, W, strides=[1,strides,strides,1], padding='SAME')
-	return_val = tf.nn.bias_add(return_val, b)
+	return_val = tf.contrib.layers.batch_norm(return_val, center=True, scale=True, is_training=training)
 	return tf.nn.relu(return_val)
 
 def maxpool(x, pool_size=2):
@@ -105,26 +153,26 @@ def model(images, weights, biases, dropout=0.5):
 	"""
 	
 	# Apply convolution and pooling to each layer
-	conv1 = conv2d(images, weights['conv1'], biases['conv1'], strides=2)  
+	conv1 = conv2d(images, weights['conv1'], strides=2)  
 	conv1 = maxpool(conv1)
 
-	conv2 = conv2d(conv1, weights['conv2'], biases['conv2'])
+	conv2 = conv2d(conv1, weights['conv2'])
 	conv2 = maxpool(conv2)
 
-	conv3 = conv2d(conv2, weights['conv3'], biases['conv3'])
+	conv3 = conv2d(conv2, weights['conv3'])
 	conv3 = maxpool(conv3)
 
-	conv4 = conv2d(conv3, weights['conv4'], biases['conv4'])
+	conv4 = conv2d(conv3, weights['conv4'])
 	conv4 = maxpool(conv4)
 	
 	# Apply dropout
-	conv3 = tf.nn.dropout(conv3, dropout)
+	conv4_norm_dropout = tf.nn.dropout(conv4, dropout)
 	
 	# First reshape output of conv3 into a vector
-	conv3_vec = tf.reshape(conv3, [-1,16*16*128])
+	conv4_vec = tf.reshape(conv4_norm_dropout, [-1,8*8*128]) ##MAY NEED CHANGE
 	
 	# FC layers
-	fc1 = fc(conv3_vec, weights['fc1'], biases['fc1'])
+	fc1 = fc(conv4_vec, weights['fc1'], biases['fc1'])
 
 	# Then apply dropout
 	fc1 = tf.nn.dropout(fc1, dropout)
@@ -138,13 +186,10 @@ weights = {'conv1':tf.Variable(tf.random_normal([5,5,3,32])), # 5 by 5 convoluti
 		   'conv2':tf.Variable(tf.random_normal([5,5,32,64])), # 5 by 5 convolution, 32 inputs, 64 outputs
 		   'conv3':tf.Variable(tf.random_normal([3,3,64,128])), # 3 by 3 convolution, 64 inputs, 128 outputs
 		   'conv4':tf.Variable(tf.random_normal([3,3,128,128])), # 3 by 3 convolution, 128 inputs, 128 outputs
-		   'fc1':tf.Variable(tf.random_normal([16*16*128,1024])), 
+		   'fc1':tf.Variable(tf.random_normal([8*8*128,1024])), 
 		   'fc2':tf.Variable(tf.random_normal([1024,N_CLASSES]))}
 
-biases = {'conv1':tf.Variable(tf.random_normal([32])),
-		  'conv2':tf.Variable(tf.random_normal([64])),
-		  'conv3':tf.Variable(tf.random_normal([128])),
-		  'conv4':tf.Variable(tf.random_normal([128])),
+biases = { # Note: no biases for conv layers, as batch normalization acheives the eliminates the need for biases
 		  'fc1':tf.Variable(tf.random_normal([1024])),
 		  'fc2':tf.Variable(tf.random_normal([N_CLASSES]))}
 
@@ -170,6 +215,9 @@ was_pred_correct = tf.equal(y_pred_class, y_true_class)
 # Compute accuracy
 accuracy = tf.reduce_mean(tf.cast(was_pred_correct, tf.float32))
 
+# Variable to use to save the weights
+saver = tf.train.Saver()
+
 with tf.Session() as sess:
 	sess.run(tf.global_variables_initializer())
 
@@ -179,13 +227,13 @@ with tf.Session() as sess:
 
 	try:
 		while True:
-			# Run training Ops here...
+			# Run training ops here
 			for epoch in range(EPOCHS):
 				total_training_cost = 0
 				train_accuracies = np.array([])
 				counter = 0
 				for image in range(N_TRAINING_EXAMPLES//BATCH_SIZE):
-					print('Batch ' + str(counter))
+					print('Batch ' + str(counter) + ' out of ' + str(N_TRAINING_EXAMPLES//BATCH_SIZE))
 					counter += 1
 					# Extract the next batch of images and labels
 					X_train_batch = sess.run(image_batch_train)
@@ -197,11 +245,13 @@ with tf.Session() as sess:
 					sess.run(optimizer, feed_dict=feed_dict_train)
 					
 					# Compute and store training accuracy metrics
-					train_cost, train_accuracy, logitsss = sess.run([cost, accuracy, normalized_pred], feed_dict=feed_dict_train)
+					train_cost, train_accuracy, logitsss = sess.run([cost, accuracy, normalized_pred],\
+						feed_dict=feed_dict_train)
 					np.append(train_accuracies, train_accuracy)
 					total_training_cost += cost
 					print(logitsss.shape)
 					print(logitsss[0])
+					print(tf.reduce_sum(logitsss[0]))
 				
 				# Compute overall training accuracy
 				train_accuracy = np.mean(train_accuracies)
@@ -209,6 +259,8 @@ with tf.Session() as sess:
 				total_valid_cost = 0
 				valid_accuracies = np.array([])
 				for image in range(N_VALIDATION_EXAMPLES//BATCH_SIZE):
+					# Set the training flag to FALSE
+					sess.run(training, feed_dict={training : False})
 					# Extract the next batch of images and labels
 					X_valid_batch = sess.run(image_batch_valid)
 					y_valid_batch = sess.run(label_batch_valid)
@@ -232,6 +284,38 @@ with tf.Session() as sess:
 	except tf.errors.OutOfRangeError:
 		print('Done training - input queues empty')
 
+		# Save weights
+		save_path = saver.save(sess, "/tmp/model.ckpt")
+		print("Model saved in file: %s" % save_path)
+
 	# Perform cleanup operations with the threads
 	coord.request_stop()
 	#coord.join(threads)
+
+
+# Still list of things to do
+"""
+Shuffile queue
+TEST DATA and evaulation
+output to SCV
+The thresholds: https://www.kaggle.com/infinitewing/keras-solution-and-my-experience-0-92664
+thres = {   'blow_down':0.2,
+                'bare_ground':0.138,
+                'conventional_mine':0.1,
+                'blooming':0.168,
+                'cultivation':0.204,
+                'artisinal_mine':0.114,
+                'haze':0.204,
+                'primary':0.204,
+                'slash_burn':0.38,
+                'habitation':0.17,
+                'clear':0.13,
+                'road':0.156,
+                'selective_logging':0.154,
+                'partly_cloudy':0.112,
+                'agriculture':0.164,
+                'water':0.182,
+                'cloudy':0.076}
+"""
+
+
