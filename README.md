@@ -1,14 +1,19 @@
 # Kaggle Planet ConvNet
 ### Convolutional neural network developed for the Planet: Understanding the Amazon from Space Kaggle Competition
 
-## Overview
+![Sample output image 1](/image_assets/Sample1.png?raw=true)
+![Sample output image 2](/image_assets/Sample2.png?raw=true)
 
+## Overview
+This project is an implementation of a convolutional neural network that classifies satellite imagery of the Amazon Rainforest into 17 categories. Both Keras and Tensorflow versions of the convnet are implemented. Learns to classify images with >90% accuracy. 
 
 ## Setup Instructions
+Python 2.7.1 or above is required, preferably the [Anaconda Distribution](https://www.continuum.io/downloads "Download Anaconda")
+
 #### Dependencies
-First, make sure to have the following dependencies installed:
-* NumPy
-* Pandas
+Make sure to have the following dependencies installed:
+* NumPy (included in Anaconda)
+* Pandas (included in Anaconda)
 * CV2
 * TQDM
 * Keras
