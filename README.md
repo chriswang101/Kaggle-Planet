@@ -1,7 +1,7 @@
 # Kaggle Planet ConvNet
 ### Convolutional neural network developed for the Planet: Understanding the Amazon from Space Kaggle Competition
 
-![Sample output image 1](/image_assets/Sample1.png) ![Sample output image 2](/image_assets/Sample2.png)
+![Sample output image 1](/image_assets/Sample1.png) ![Sample output image 2](/image_assets/Sample2.png | width=200)
 
 ## Overview
 This project is an implementation of a convolutional neural network that classifies satellite imagery of the Amazon Rainforest into 17 categories. Both Keras and Tensorflow versions of the convnet are implemented. Learns to classify images with >90% accuracy. 
