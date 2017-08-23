@@ -63,10 +63,7 @@ class input_pipeline(object):
 		Returns:
 			tuple of two tensors with format (train set, test set)
 		"""
-		print("ASF", tensor.shape)
 		num_items = tensor.shape[0].value
-		#train_tensor = tensor[0:10000, :]
 		train_tensor = tf.slice(tensor, [0], [num_items - test_size])
 		test_tensor = tf.slice(tensor, [num_items - test_size], [test_size])
 		return train_tensor, test_tensor
-
