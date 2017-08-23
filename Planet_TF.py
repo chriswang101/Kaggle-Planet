@@ -6,6 +6,11 @@ from tensorflow.python.framework import dtypes
 
 from input_pipeline import input_pipeline 
 
+text_input = ''
+while text_input != 'train' or text_input != 'test' or text_input != 'both':
+	text_input = input("Input 'train' to train the model, 'test' to test the model \
+					   or 'both' to both train and test the model: ")
+
 # Filepath of the dataset
 pre_filepath = "../../../../../../Volumes/Seagate Backup Plus Drive/Documents/Kaggle Datasets/Planet/train-jpg/"
 
@@ -16,8 +21,6 @@ EPOCHS = 6
 LAMBDA = 0.01 # Regularization strength
 
 IMAGE_HEIGHT = IMAGE_WIDTH = 256
-
-checkpoint_dir = "model_data/"
 
 # Used to convert the names of the labels to an integer index
 label_map = { 
@@ -216,7 +219,14 @@ was_pred_correct = tf.equal(y_pred_class, y_true_class)
 accuracy = tf.reduce_mean(tf.cast(was_pred_correct, tf.float32))
 
 # Variable to use to save the weights
-saver = tf.train.Saver()
+saver = tf.train.Saver({
+	'conv1' : weights['conv1'],
+	'conv2' : weights['conv2'],
+	'conv3' : weights['conv3'],
+	'conv4' : weights['conv4'],
+	'fc1' : weights['fc1'],
+	'fc2' : weights['fc2']
+	})
 
 with tf.Session() as sess:
 	sess.run(tf.global_variables_initializer())
@@ -225,72 +235,76 @@ with tf.Session() as sess:
 	coord = tf.train.Coordinator()
 	threads = tf.train.start_queue_runners(coord=coord)
 
-	try:
-		while True:
-			# Run training ops here
-			for epoch in range(EPOCHS):
-				total_training_cost = 0
-				train_accuracies = np.array([])
-				counter = 0
-				for image in range(N_TRAINING_EXAMPLES//BATCH_SIZE):
-					print('Batch ' + str(counter) + ' out of ' + str(N_TRAINING_EXAMPLES//BATCH_SIZE))
-					counter += 1
-					# Extract the next batch of images and labels
-					X_train_batch = sess.run(image_batch_train)
-					y_train_batch = sess.run(label_batch_train)
+	if text_input == 'train' or text_input == 'both':
+		try:
+			while True:
+				# Run training ops here
+				for epoch in range(EPOCHS):
+					total_training_cost = 0
+					train_accuracies = np.array([])
+					counter = 0
+					for image in range(N_TRAINING_EXAMPLES//BATCH_SIZE):
+						print('Batch ' + str(counter) + ' out of ' + str(N_TRAINING_EXAMPLES//BATCH_SIZE))
+						counter += 1
+						# Extract the next batch of images and labels
+						X_train_batch = sess.run(image_batch_train)
+						y_train_batch = sess.run(label_batch_train)
 
-					# Run the model
-					feed_dict_train = {X : X_train_batch,
-									   y : y_train_batch}
-					sess.run(optimizer, feed_dict=feed_dict_train)
+						# Run the model
+						feed_dict_train = {X : X_train_batch,
+										   y : y_train_batch}
+						sess.run(optimizer, feed_dict=feed_dict_train)
+						
+						# Compute and store training accuracy metrics
+						train_cost, train_accuracy, logitsss = sess.run([cost, accuracy, normalized_pred],\
+							feed_dict=feed_dict_train)
+						np.append(train_accuracies, train_accuracy)
+						total_training_cost += cost
+						print(logitsss.shape)
+						print(logitsss[0])
+						print(tf.reduce_sum(logitsss[0]))
 					
-					# Compute and store training accuracy metrics
-					train_cost, train_accuracy, logitsss = sess.run([cost, accuracy, normalized_pred],\
-						feed_dict=feed_dict_train)
-					np.append(train_accuracies, train_accuracy)
-					total_training_cost += cost
-					print(logitsss.shape)
-					print(logitsss[0])
-					print(tf.reduce_sum(logitsss[0]))
+					# Compute overall training accuracy
+					train_accuracy = np.mean(train_accuracies)
+
+					total_valid_cost = 0
+					valid_accuracies = np.array([])
+					for image in range(N_VALIDATION_EXAMPLES//BATCH_SIZE):
+						# Set the training flag to FALSE
+						sess.run(training, feed_dict={training : False})
+						# Extract the next batch of images and labels
+						X_valid_batch = sess.run(image_batch_valid)
+						y_valid_batch = sess.run(label_batch_valid)
+
+						feed_dict_valid = {X : X_valid_batch,
+										   y : y_valid_batch}
+
+						# Compute and store validation accuracy metrics
+						valid_cost, valid_accuracy = sess.run([cost, accuracy], feed_dict=feed_dict_valid)
+						np.append(valid_accuracies, valid_accuracy)
+						total_valid_cost += valid_cost
+
+					# Compute overall validation accuracy
+					valid_accuracy = np.mean(valid_accuracies)
+
+					# Print relevant stats about the model
+					print("Epoch: " + str(epoch))
+					print("Training loss: " + str(total_training_cost) + "Training accuracy: " + str(train_accuracy))
+					print("Validation loss: " + str(total_valid_cost) + "Validation accuracy: " + str(valid_accuracy))
 				
-				# Compute overall training accuracy
-				train_accuracy = np.mean(train_accuracies)
+		except tf.errors.OutOfRangeError:
+			print('Done training - input queues empty')
 
-				total_valid_cost = 0
-				valid_accuracies = np.array([])
-				for image in range(N_VALIDATION_EXAMPLES//BATCH_SIZE):
-					# Set the training flag to FALSE
-					sess.run(training, feed_dict={training : False})
-					# Extract the next batch of images and labels
-					X_valid_batch = sess.run(image_batch_valid)
-					y_valid_batch = sess.run(label_batch_valid)
+			# Save weights
+			save_path = saver.save(sess, "/model-data/planet_weights.ckpt")
+			print("Model saved in file: %s" % save_path)
 
-					feed_dict_valid = {X : X_valid_batch,
-									   y : y_valid_batch}
+		# Perform cleanup operations with the threads
+		coord.request_stop()
+		#coord.join(threads)
 
-					# Compute and store validation accuracy metrics
-					valid_cost, valid_accuracy = sess.run([cost, accuracy], feed_dict=feed_dict_valid)
-					np.append(valid_accuracies, valid_accuracy)
-					total_valid_cost += valid_cost
-
-				# Compute overall validation accuracy
-				valid_accuracy = np.mean(valid_accuracies)
-
-				# Print relevant stats about the model
-				print("Epoch: " + str(epoch))
-				print("Training loss: " + str(total_training_cost) + "Training accuracy: " + str(train_accuracy))
-				print("Validation loss: " + str(total_valid_cost) + "Validation accuracy: " + str(valid_accuracy))
-			
-	except tf.errors.OutOfRangeError:
-		print('Done training - input queues empty')
-
-		# Save weights
-		save_path = saver.save(sess, "/tmp/model.ckpt")
-		print("Model saved in file: %s" % save_path)
-
-	# Perform cleanup operations with the threads
-	coord.request_stop()
-	#coord.join(threads)
+	# Test the model and output predictions
+	if text_input == ''
 
 
 # Still list of things to do
