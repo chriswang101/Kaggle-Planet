@@ -15,7 +15,7 @@ X_train = []
 X_test = []
 y_train = []
 
-pre_filepath = "../../../../../../Volumes/Seagate Backup Plus Drive/Documents/Kaggle Datasets/"
+pre_filepath = "../../../../../../Volumes/Seagate Backup Plus Drive/Documents/Kaggle Datasets/Planet/"
 
 df_train = pd.read_csv(pre_filepath + "train_v2.csv")
 
@@ -30,7 +30,7 @@ print(label_map)
 
 for file_name, tags in tqdm.tqdm(df_train.values, miniters=100):
     
-    image = cv2.imread(pre_filepath + "Planet/train-tif-v2/" + file_name + ".tif")
+    image = cv2.imread(pre_filepath + "train-jpg/" + file_name + ".jpg")
     targets = np.zeros(17)
     for tag in tags.split(' '):
         targets[label_map[tag]] = 1
