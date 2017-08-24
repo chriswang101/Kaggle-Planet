@@ -26,12 +26,12 @@ For the network to run, training and test data and the correct training labels w
 1. Extract the train and test datasets to any directory. Ensure the two extracted folders are named `train-jpg` and `test-jpg` respectively. 
 
 ### Keras Version
-2. In line 12 of Preprocessing_Keras.py AND line 18 of Planet_Keras.py, assign the relative path to the train data directory (i.e. the parent directory of `train-jpg`) to pre_filepath.
-3. Run Preprocessing_Keras.py. You should get numpy arrays of saved data in the pre_filepath directory. 
-4. Run Planet_Keras.py.
+2. In line 12 of `Preprocessing_Keras.py` AND line 18 of `Planet_Keras.py`, assign the relative path to the train data directory (i.e. the parent directory of `train-jpg`) to `pre_filepath`.
+3. Run `Preprocessing_Keras.py`. You should get numpy arrays of saved data in the `pre_filepath` directory. 
+4. Run `Planet_Keras.py`.
 
 ### Tensorflow Version
-2. In line 14 of Planet_TF.py, assign the relative path to the train and test dataset to the variables `pre_filepath_train` and `pre_filepath_test`
+2. In line 14 of `Planet_TF.py`, assign the relative path to the train and test dataset to the variables `pre_filepath_train` and `pre_filepath_test`
 3. Extract the CSV file and place it in the same directory as `Planet_TF.py`. Ensure the CSV file is named `train_v2.csv`.
 4. Run the network. Note that it may take a while to train especially on CPU only.
 
